@@ -24,7 +24,7 @@ import inspect
 import json
 import os
 import re
-from typing import Any, Callable, Iterable, Mapping, MutableMapping, Optional, Sequence, Tuple, Type, Union
+from typing import Any, Callable, Dict, Iterable, Mapping, MutableMapping, Optional, Sequence, Tuple, Type, Union
 
 from absl import logging
 import dataclasses
@@ -43,6 +43,11 @@ _DEFAULT_FEATURE_KEYS = ["inputs", "targets"]
 _VALID_TASK_NAME_REGEX = re.compile(r"^[\w\d\._]+$")
 _MAX_EXAMPLES_TO_MEM_CACHE = 10000
 SHUFFLE_BUFFER_SIZE = 1000
+
+DatasetReaderType = Callable[[Union[str, Iterable[str]]], tf.data.Dataset]
+DecodeFnType = Callable[..., Union[Dict[str, tf.train.Feature],
+                                   Mapping[str, tf.train.Feature],
+                                   MutableMapping[str, tf.train.Feature]]]
 
 
 @dataclasses.dataclass(frozen=True)
@@ -461,7 +466,7 @@ class TFExampleDataSource(FileDataSource):
       split_to_filepattern: Mapping[str, Union[str, Iterable[str]]],
       feature_description: Mapping[str, Union[tf.io.FixedLenFeature,
                                               tf.io.VarLenFeature]],
-      reader_cls: Type[tf.data.Dataset] = tf.data.TFRecordDataset,
+      reader_cls: DatasetReaderType = tf.data.TFRecordDataset,
       num_input_examples: Optional[Mapping[str, int]] = None,
   ):
     """TFExampleDataSource constructor.
@@ -482,6 +487,39 @@ class TFExampleDataSource(FileDataSource):
       return reader_cls(filepattern).map(
           lambda pb: tf.io.parse_single_example(pb, feature_description),
           num_parallel_calls=tf.data.experimental.AUTOTUNE)
+
+    super().__init__(
+        read_file_fn=read_file_fn,
+        split_to_filepattern=split_to_filepattern,
+        num_input_examples=num_input_examples)
+
+
+class ProtoDataSource(FileDataSource):
+  """A `FileDataSource` that reads files of arbitrary protos as input."""
+
+  def __init__(
+      self,
+      split_to_filepattern: Mapping[str, Union[str, Iterable[str]]],
+      decode_proto_fn: DecodeFnType,
+      reader_cls: DatasetReaderType = tf.data.TFRecordDataset,
+      num_input_examples: Optional[Mapping[str, int]] = None,
+  ):
+    """ProtoDataSource constructor.
+
+    Args:
+      split_to_filepattern: dict of string (split name) to either string
+        (filename or filepattern) or list of strings (filenames or
+        filepatterns).
+      decode_proto_fn: a callable to parse a serialized proto to features.
+      reader_cls: `tf.data.Dataset`, a dataset class to read the input files.
+      num_input_examples: dict or None, an optional dictionary mapping split to
+        its size in number of input examples (before preprocessing). The
+        `num_input_examples` method will return None if not provided.
+    """
+
+    def read_file_fn(filepattern: Union[str, Iterable[str]]):
+      return reader_cls(filepattern).map(
+          decode_proto_fn, num_parallel_calls=tf.data.experimental.AUTOTUNE)
 
     super().__init__(
         read_file_fn=read_file_fn,
