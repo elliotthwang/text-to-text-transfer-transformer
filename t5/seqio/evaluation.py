@@ -101,9 +101,8 @@ def get_valid_eval_tasks(tasks: Sequence[Task], split: str) -> Sequence[Task]:
 
   for task in tasks:
     if split not in task.splits:
-      logging.info(
-          "Task %s has no '%s' split; skipping eval.", task.name, split
-      )
+      logging.info("Task %s has no '%s' split; skipping eval. Splits: %s",
+                   task.name, split, task.splits)
       continue
     if not task.metric_fns:
       logging.info("Task %s has no metric_fns; skipping eval.", task.name)
@@ -173,29 +172,24 @@ def get_targets_and_examples(
 class PredictFnCallable(typing_extensions.Protocol):
 
   def __call__(
-      self,
-      dataset: tf.data.Dataset,
-      model_feature_lengths: Mapping[str, int]
-  ) -> Sequence[Tuple[int, Sequence[int]]]: ...
+      self, dataset: tf.data.Dataset, model_feature_lengths: Mapping[str, int]
+  ) -> Sequence[Tuple[int, Sequence[int]]]:
+    ...
 
 
 class ScoreFnCallable(typing_extensions.Protocol):
 
   def __call__(
-      self,
-      dataset: tf.data.Dataset,
-      model_feature_lengths: Mapping[str, int]
-  ) -> Sequence[Tuple[int, float]]: ...
+      self, dataset: tf.data.Dataset,
+      model_feature_lengths: Mapping[str, int]) -> Sequence[Tuple[int, float]]:
+    ...
 
 
 class LogFnCallable(typing_extensions.Protocol):
 
-  def __call__(
-      self,
-      task_metrics: Mapping[str, Metric],
-      step: int,
-      task_name: str
-  ) -> None: ...
+  def __call__(self, task_metrics: Mapping[str, Metric], step: int,
+               task_name: str) -> None:
+    ...
 
 
 class Evaluator:

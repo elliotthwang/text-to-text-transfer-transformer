@@ -503,6 +503,11 @@ def assert_dict_values_equal(a, b):
   tf.nest.map_structure(np.testing.assert_equal, a, b)
 
 
+def encode_str(task_name, s, feature_name="targets"):
+  task = dataset_providers.get_mixture_or_task(task_name)
+  return task.output_features[feature_name].vocabulary.encode(s)
+
+
 def test_task(task_name,
               raw_data,
               predict_output=None,
